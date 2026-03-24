@@ -46,7 +46,9 @@ Requires [Android SDK and NDK](https://v2.tauri.app/start/prerequisites/#android
 
 ```sh
 npx tauri android init   # first time only
+npx tauri icons          # generate icons in android project
 npx tauri android build
+apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android  ./src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk # codesign with debug cert
 ```
 
 Outputs APK/AAB in `src-tauri/gen/android/app/build/outputs/`.
