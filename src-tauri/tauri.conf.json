@@ -14,7 +14,8 @@
       {
         "title": "CloudpilotEmu",
         "width": 400,
-        "height": 700
+        "height": 700,
+        "userAgent": "... tauri-shim"
       }
     ],
     "security": {
