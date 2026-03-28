@@ -10,12 +10,13 @@ pub fn run() {
         .append_invoke_initialization_script("window.__cpe_shim_tauri_api_version__ = 0;")
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            network::net_set_rpc_result_channel,
             network::net_open_session,
             network::net_close_session,
             network::net_dispatch_rpc,
         ])
-        .setup(|app| {
-            network::init(app.handle());
+        .setup(|_| {
+            network::init();
             Ok(())
         })
         .on_page_load(|_webview, payload| {
