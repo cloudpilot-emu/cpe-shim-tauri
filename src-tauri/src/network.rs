@@ -78,8 +78,6 @@ pub async fn net_open_session(app_handle: AppHandle) -> isize {
         return OpenSessionError::Other as isize;
     }
 
-    println!("opening network session");
-
     unsafe { network_ffi::net_openSession() as isize }
 }
 
