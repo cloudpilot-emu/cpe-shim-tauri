@@ -1,10 +1,17 @@
-use std::{ffi::c_void, sync::Mutex};
+use std::{ffi::c_void, ops::DerefMut, sync::Mutex, time::Instant};
 
 use serde::Serialize;
-use tauri::{ipc::Channel, AppHandle, Runtime};
+use tauri::{ipc::Channel, AppHandle, Manager, Runtime};
+use tauri_plugin_dialog::{
+    Dialog, DialogExt, MessageDialogButtons::OkCancelCustom, MessageDialogResult,
+};
 use tauri_plugin_notification::{Notification, NotificationExt, PermissionState};
+use tokio::sync::oneshot;
 
-use crate::network_ffi;
+use crate::{
+    network_ffi,
+    state::{NetworkSessionConsent, State},
+};
 
 enum OpenSessionError {
     NotificationPermissionRequired = -1,
@@ -16,6 +23,9 @@ enum RequestNotificationPermissionResult {
     Denied,
     Failed,
 }
+
+const CONSENT_ALLOW_TIMEOUT_SECONDS: u64 = 60 * 5;
+const CONSENT_DENY_TIMEOUT_SECONDS: u64 = 5;
 
 #[derive(Clone, Serialize)]
 pub struct NetRpcResultPayload {
@@ -59,6 +69,28 @@ pub fn net_set_rpc_result_channel(channel: Channel<NetRpcResultPayload>) {
 
 #[tauri::command]
 pub async fn net_open_session(app_handle: AppHandle) -> isize {
+    let previous_consent = app_handle
+        .state::<Mutex<State>>()
+        .inner()
+        .lock()
+        .unwrap()
+        .network_session_consent;
+
+    let consent = get_consent(previous_consent, app_handle.dialog()).await;
+
+    app_handle
+        .state::<Mutex<State>>()
+        .inner()
+        .lock()
+        .unwrap()
+        .deref_mut()
+        .network_session_consent = consent;
+
+    if let Some((true, _)) = consent {
+    } else {
+        return OpenSessionError::Other as isize;
+    }
+
     match request_notification_permission(&app_handle.notification()) {
         RequestNotificationPermissionResult::Failed => return OpenSessionError::Other as isize,
         RequestNotificationPermissionResult::Denied => {
@@ -95,8 +127,8 @@ pub fn net_close_all_sessions() {
     unsafe { network_ffi::net_closeAllSessions() }
 }
 
-fn request_notification_permission<T: Runtime>(
-    notification: &Notification<T>,
+fn request_notification_permission<R: Runtime>(
+    notification: &Notification<R>,
 ) -> RequestNotificationPermissionResult {
     match notification.permission_state() {
         Err(err) => {
@@ -119,4 +151,34 @@ fn request_notification_permission<T: Runtime>(
         Ok(PermissionState::Granted) => RequestNotificationPermissionResult::Granted,
         _ => RequestNotificationPermissionResult::Denied,
     }
+}
+
+async fn get_consent<R: Runtime>(
+    previous_consent: NetworkSessionConsent,
+    dialog: &Dialog<R>,
+) -> NetworkSessionConsent {
+    if let Some((consent, timestamp)) = previous_consent {
+        let age_seconds = Instant::now().duration_since(timestamp).as_secs();
+
+        if consent && (age_seconds <= CONSENT_ALLOW_TIMEOUT_SECONDS) {
+            return previous_consent;
+        }
+
+        if !consent && (age_seconds <= CONSENT_DENY_TIMEOUT_SECONDS) {
+            return previous_consent;
+        }
+    }
+
+    let (tx, rx) = oneshot::channel::<bool>();
+    dialog
+        .message("PalmOS is trying to access the network.")
+        .title("Network access")
+        .buttons(OkCancelCustom("Allow".into(), "Deny".into()))
+        .show_with_result(|result| {
+            let _ = tx.send(result == MessageDialogResult::Custom("Allow".into()));
+        });
+
+    let consent = rx.await;
+
+    Some((consent.unwrap(), Instant::now()))
 }
