@@ -1,4 +1,5 @@
 fn main() {
+    println!("cargo:rerun-if-changed=network-backend/");
     tauri_build::build();
 
     cc::Build::new()

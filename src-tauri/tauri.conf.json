@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "io.github.cloudpilotemu",
   "build": {
-    "frontendDist": "https://cloudpilot-emu.github.io/app",
+    "frontendDist": "https://cloudpilot-emu.github.io/app-preview",
     "devUrl": "http://localhost:4200",
     "beforeDevCommand": "",
     "beforeBuildCommand": ""
