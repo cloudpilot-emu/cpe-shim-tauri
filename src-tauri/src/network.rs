@@ -5,6 +5,7 @@ use tauri::{ipc::Channel, AppHandle, Manager, Runtime};
 use tauri_plugin_dialog::{
     Dialog, DialogExt, MessageDialogButtons, MessageDialogKind, MessageDialogResult,
 };
+use tauri_plugin_dns::get_dns_servers;
 use tokio::sync::oneshot;
 
 use crate::{
@@ -83,7 +84,15 @@ pub async fn net_open_session(app_handle: AppHandle) -> isize {
         return OpenSessionError::Other as isize;
     }
 
-    unsafe { network_ffi::net_openSession() as isize }
+    let id = unsafe { network_ffi::net_openSession() };
+
+    if let Some((primary, secondary)) = get_dns_servers(&app_handle) {
+        unsafe {
+            network_ffi::net_setDnsServers(id, primary, secondary);
+        }
+    }
+
+    id as isize
 }
 
 #[tauri::command]

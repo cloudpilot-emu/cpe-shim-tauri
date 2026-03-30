@@ -14,6 +14,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dns::init())
         .append_invoke_initialization_script("window.__cpe_shim_tauri_api_version__ = 0;")
         .invoke_handler(tauri::generate_handler![
             network::net_set_rpc_result_channel,

@@ -8,4 +8,5 @@ unsafe extern "C" {
     pub fn net_closeSession(session_id: u32);
     pub fn net_closeAllSessions();
     pub fn net_dispatchRpc(session_id: u32, data: *const u8, len: usize) -> bool;
+    pub unsafe fn net_setDnsServers(session_id: u32, primary: u32, secondary: u32);
 }
