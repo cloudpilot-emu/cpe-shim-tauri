@@ -24,7 +24,7 @@ fn main() {
     let mut cpp_build = cc::Build::new();
     cpp_build
         .cpp(true)
-        .std("c++17")
+        .std("c++20")
         .files(&[
             "network-backend/networkBackend.cpp",
             "network-backend/NetworkSession.cpp",
