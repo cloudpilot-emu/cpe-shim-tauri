@@ -61,18 +61,17 @@ pub fn net_set_rpc_result_channel(channel: Channel<NetRpcResultPayload>) {
 }
 
 #[tauri::command]
-pub async fn net_open_session(app_handle: AppHandle) -> isize {
-    let previous_consent = app_handle
+pub async fn net_open_session(app: AppHandle) -> isize {
+    let previous_consent = app
         .state::<Mutex<State>>()
         .inner()
         .lock()
         .unwrap()
         .network_session_consent;
 
-    let consent = get_consent(previous_consent, app_handle.dialog()).await;
+    let consent = get_consent(previous_consent, app.dialog()).await;
 
-    app_handle
-        .state::<Mutex<State>>()
+    app.state::<Mutex<State>>()
         .inner()
         .lock()
         .unwrap()
@@ -86,7 +85,7 @@ pub async fn net_open_session(app_handle: AppHandle) -> isize {
 
     let id = unsafe { network_ffi::net_openSession() };
 
-    if let Some((primary, secondary)) = get_dns_servers(&app_handle) {
+    if let Some((primary, secondary)) = get_dns_servers(&app) {
         unsafe {
             network_ffi::net_setDnsServers(id, primary, secondary);
         }

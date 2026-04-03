@@ -5,11 +5,23 @@
   "windows": [
     "main"
   ],
+  "webviews": [
+    "splash",
+    "app"
+  ],
+  "remote": {
+    "urls": [
+      "http://localhost:4200",
+      "https://cloudpilot-emu.github.io/app-preview/",
+      "https://cloudpilot-emu.github.io/app/"
+    ]
+  },
   "permissions": [
     "core:default",
     "opener:default",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
-    "dialog:default"
+    "dialog:default",
+    "store:default"
   ]
 }

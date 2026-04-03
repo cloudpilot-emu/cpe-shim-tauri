@@ -4,24 +4,14 @@
   "version": "0.1.0",
   "identifier": "io.github.cloudpilotemu",
   "build": {
-    "frontendDist": "https://cloudpilot-emu.github.io/app-preview",
-    "devUrl": "https://cloudpilot-emu.github.io/app-preview",
-    "beforeDevCommand": "",
-    "beforeBuildCommand": ""
+    "frontendDist": "../assets"
   },
   "app": {
-    "windows": [
-      {
-        "title": "CloudpilotEmu",
-        "width": 800,
-        "height": 600,
-        "backgroundThrottling": "disabled",
-        "dragDropEnabled": false
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
-    }
+    },
+    "withGlobalTauri": true
   },
   "bundle": {
     "active": true,
