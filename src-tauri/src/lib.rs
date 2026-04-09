@@ -38,6 +38,7 @@ pub fn add_dev_capabilities(app: &mut tauri::App) -> anyhow::Result<()> {
 
     let mut capability = serde_json::from_str::<Capability>(DEFAULT_CAPABILITY)?;
 
+    capability.identifier = "dev".into();
     capability.remote = Some(CapabilityRemote {
         urls: vec![
             get_app_url(AppChannel::Preview),
