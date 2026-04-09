@@ -47,13 +47,19 @@ impl Drop for LoadGuard {
 }
 
 impl LoadGuard {
-    fn new(is_locked: Arc<Mutex<bool>>) -> Self {
-        assert!(
-            !*is_locked.lock().unwrap(),
-            "attempt to load while webview is already loading"
-        );
+    fn new(is_locked_mut: Arc<Mutex<bool>>) -> Self {
+        {
+            let mut is_locked = is_locked_mut.lock().unwrap();
 
-        Self(is_locked)
+            assert!(
+                !*is_locked,
+                "attempt to load while webview is already loading"
+            );
+
+            *is_locked = true;
+        }
+
+        Self(is_locked_mut)
     }
 }
 
