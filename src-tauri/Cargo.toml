@@ -25,3 +25,4 @@ tauri-plugin-dns = { path = "tauri-plugin-dns" }
 uuid = { version = "1.23.0", features = ["v4"] }
 anyhow = "1.0.102"
 tauri-plugin-store = "2"
+serde_repr = "0.1.20"

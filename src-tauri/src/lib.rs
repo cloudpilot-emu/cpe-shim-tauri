@@ -64,7 +64,9 @@ pub fn run() {
             network::net_close_session,
             network::net_dispatch_rpc,
             loading_controller::set_service_worker_installed,
-            loading_controller::reload
+            loading_controller::reload,
+            loading_controller::get_app_channel,
+            loading_controller::switch_app_channel
         ])
         .setup(|app| {
             app.store(store_keys::STORE_NAME)?;

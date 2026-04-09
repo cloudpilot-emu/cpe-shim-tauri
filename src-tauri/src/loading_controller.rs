@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use serde_json::{Number, Value};
 use tauri::{async_runtime, AppHandle, Listener, Manager, Url, WebviewUrl};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -18,7 +19,12 @@ use tauri::{utils::config::BackgroundThrottlingPolicy, LogicalPosition, WebviewB
 #[cfg(mobile)]
 use tauri::WebviewWindowBuilder;
 
-use crate::{app_channel::AppChannel, store_keys, url::get_app_url, version::VERSION};
+use crate::{
+    app_channel::AppChannel,
+    store_keys::{self, key_worker_installed, KEY_APP_CHANNEL},
+    url::get_app_url,
+    version::VERSION,
+};
 
 #[cfg(not(mobile))]
 const LABEL_SPLASH: &str = "splash";
@@ -64,7 +70,8 @@ impl LoadingController {
         show_splash_view(&app)?;
 
         let challenge = Uuid::new_v4().to_string();
-        let app_url = get_app_url(AppChannel::Preview);
+        let channel = get_app_channel(app.clone());
+        let app_url = get_app_url(channel);
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
         add_app_view(&app, Url::from_str(&app_url)?, challenge.as_str())?;
@@ -81,7 +88,8 @@ impl LoadingController {
         let lock = LoadGuard::new(self.is_loading.clone());
 
         let challenge = "cpe";
-        let app_url = get_app_url();
+        let channel = get_app_channel(&app);
+        let app_url = get_app_url(channel);
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
         initialize_app_view(&app, Url::from_str(&app_url)?, challenge)?;
@@ -98,7 +106,8 @@ impl LoadingController {
 pub fn set_service_worker_installed(app: AppHandle, worker_installed: bool) {
     let store = app.store(store_keys::STORE_NAME).unwrap();
 
-    store.set(store_keys::KEY_WORKER_INSTALLED, worker_installed);
+    let channel = get_app_channel(app.clone());
+    store.set(key_worker_installed(channel), worker_installed);
 }
 
 #[tauri::command]
@@ -108,6 +117,28 @@ pub fn reload(app: AppHandle) {
     loading_controller
         .load(app.clone())
         .expect("failed to reload");
+}
+
+#[tauri::command]
+pub fn get_app_channel(app: AppHandle) -> AppChannel {
+    let store = app.store(store_keys::STORE_NAME).unwrap();
+
+    store
+        .get(KEY_APP_CHANNEL)
+        .as_ref()
+        .and_then(Value::as_number)
+        .and_then(Number::as_i64)
+        .and_then(AppChannel::from_number)
+        .unwrap_or(AppChannel::Stable)
+}
+
+#[tauri::command]
+pub fn switch_app_channel(app: AppHandle, channel: AppChannel) {
+    let store = app.store(store_keys::STORE_NAME).unwrap();
+
+    store.set(KEY_APP_CHANNEL, channel as i64);
+
+    reload(app.clone());
 }
 
 fn listen_for_handshake(app: &AppHandle, challenge: String, tx: UnboundedSender<()>) {
