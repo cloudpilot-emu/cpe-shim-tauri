@@ -253,7 +253,10 @@ fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Re
                             sessionStorage.setItem('TAURI_APP_FIRST_LOAD', '1');
                         }} else {{
                             hasConnectionIssue = true;
-                            setTimeout(() => __TAURI__.event.emit('handshake', __cpe_shim_tauri_challenge), 5000);
+                            
+                            if (!!window.navigator.serviceWorker?.controller) {{
+                                setTimeout(() => __TAURI__.event.emit('handshake', window.__cpe_shim_tauri_challenge), 5000);
+                            }}
                         }}
 
                         const html = {};
