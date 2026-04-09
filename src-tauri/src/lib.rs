@@ -1,3 +1,4 @@
+mod app_channel;
 mod loading_controller;
 mod network;
 mod network_ffi;
@@ -8,13 +9,46 @@ mod version;
 
 use std::sync::Mutex;
 
-use tauri::{webview::PageLoadEvent, Manager};
+use tauri::{
+    ipc::RuntimeCapability,
+    utils::acl::capability::{Capability, CapabilityFile, CapabilityRemote},
+    webview::PageLoadEvent,
+    Manager,
+};
 use tauri_plugin_store::StoreExt;
 
 #[cfg(not(mobile))]
 use tauri::WindowBuilder;
 
-use crate::{loading_controller::LoadingController, state::State};
+use crate::{
+    app_channel::AppChannel, loading_controller::LoadingController, state::State, url::get_app_url,
+};
+
+struct CapabilityWrapper(Capability);
+
+impl RuntimeCapability for CapabilityWrapper {
+    fn build(self) -> CapabilityFile {
+        CapabilityFile::Capability(self.0)
+    }
+}
+
+#[cfg(dev)]
+pub fn add_dev_capabilities(app: &mut tauri::App) -> anyhow::Result<()> {
+    const DEFAULT_CAPABILITY: &str = include_str!("../capabilities/default.json");
+
+    let mut capability = serde_json::from_str::<Capability>(DEFAULT_CAPABILITY)?;
+
+    capability.remote = Some(CapabilityRemote {
+        urls: vec![
+            get_app_url(AppChannel::Preview),
+            get_app_url(AppChannel::Stable),
+        ],
+    });
+
+    app.add_capability(CapabilityWrapper(capability))?;
+
+    Ok(())
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -39,6 +73,9 @@ pub fn run() {
             app.manage(LoadingController::default());
 
             network::init();
+
+            #[cfg(dev)]
+            add_dev_capabilities(app)?;
 
             #[cfg(not(mobile))]
             WindowBuilder::new(app, "main")

@@ -18,7 +18,7 @@ use tauri::{utils::config::BackgroundThrottlingPolicy, LogicalPosition, WebviewB
 #[cfg(mobile)]
 use tauri::WebviewWindowBuilder;
 
-use crate::{loading_controller, store_keys, url::get_app_url, version::VERSION};
+use crate::{app_channel::AppChannel, store_keys, url::get_app_url, version::VERSION};
 
 #[cfg(not(mobile))]
 const LABEL_SPLASH: &str = "splash";
@@ -64,7 +64,7 @@ impl LoadingController {
         show_splash_view(&app)?;
 
         let challenge = Uuid::new_v4().to_string();
-        let app_url = get_app_url();
+        let app_url = get_app_url(AppChannel::Preview);
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
         add_app_view(&app, Url::from_str(&app_url)?, challenge.as_str())?;
@@ -147,7 +147,6 @@ fn wait_for_load(app: &AppHandle, mut rx: UnboundedReceiver<()>, url: String, lo
     });
 }
 
-#[cfg(not(mobile))]
 fn handle_handshake_timeout(app: &AppHandle, url: &str) {
     if let Some(splash_view) = app.get_webview(LABEL_SPLASH) {
         let _ = splash_view.eval("document.documentElement.classList.add('connection-issue');");
@@ -182,6 +181,15 @@ fn remove_view(app: &AppHandle, label: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(not(dev))]
+fn enable_dev_tools() -> bool {
+    if let Some(value) = option_env!("TAURI_DEV_TOOLS") {
+        !value.is_empty()
+    } else {
+        false
+    }
+}
+
 #[cfg(not(mobile))]
 fn show_splash_view(app: &AppHandle) -> anyhow::Result<()> {
     remove_view(app, LABEL_SPLASH)?;
@@ -195,7 +203,7 @@ fn show_splash_view(app: &AppHandle) -> anyhow::Result<()> {
     .auto_resize();
 
     #[cfg(not(dev))]
-    let builder = builder.devtools(false);
+    let builder = builder.devtools(enable_dev_tools());
 
     let _ = window.add_child(builder, LogicalPosition::new(0, 0), window.inner_size()?)?;
 
@@ -229,7 +237,7 @@ fn add_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Result<()
         .auto_resize();
 
     #[cfg(not(dev))]
-    let builder = builder.devtools(false);
+    let builder = builder.devtools(enable_dev_tools());
 
     let app_view = window.add_child(builder, LogicalPosition::new(0, 0), window.inner_size()?)?;
     app_view.hide()?;
@@ -298,7 +306,7 @@ fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Re
             ));
 
         #[cfg(not(dev))]
-        let builder = builder.devtools(true);
+        let builder = builder.devtools(enable_dev_tools());
 
         builder.build()?;
     }

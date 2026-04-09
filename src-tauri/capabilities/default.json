@@ -3,7 +3,8 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": [
-    "main"
+    "main",
+    "app"
   ],
   "webviews": [
     "splash",
@@ -11,7 +12,6 @@
   ],
   "remote": {
     "urls": [
-      "http://localhost:4200",
       "https://cloudpilot-emu.github.io/app-preview/",
       "https://cloudpilot-emu.github.io/app/"
     ]
