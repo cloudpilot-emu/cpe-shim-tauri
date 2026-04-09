@@ -18,7 +18,7 @@ use tauri::{utils::config::BackgroundThrottlingPolicy, LogicalPosition, WebviewB
 #[cfg(mobile)]
 use tauri::WebviewWindowBuilder;
 
-use crate::{store_keys, url::get_app_url, version::VERSION};
+use crate::{loading_controller, store_keys, url::get_app_url, version::VERSION};
 
 #[cfg(not(mobile))]
 const LABEL_SPLASH: &str = "splash";
@@ -99,6 +99,15 @@ pub fn set_service_worker_installed(app: AppHandle, worker_installed: bool) {
     let store = app.store(store_keys::STORE_NAME).unwrap();
 
     store.set(store_keys::KEY_WORKER_INSTALLED, worker_installed);
+}
+
+#[tauri::command]
+pub fn reload(app: AppHandle) {
+    let loading_controller = app.state::<LoadingController>();
+
+    loading_controller
+        .load(app.clone())
+        .expect("failed to reload");
 }
 
 fn listen_for_handshake(app: &AppHandle, challenge: String, tx: UnboundedSender<()>) {
@@ -195,6 +204,8 @@ fn show_splash_view(app: &AppHandle) -> anyhow::Result<()> {
 
 #[cfg(not(mobile))]
 fn add_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Result<()> {
+    remove_view(app, LABEL_APP)?;
+
     let window = get_window(app)?;
 
     let builder = WebviewBuilder::new(LABEL_APP, WebviewUrl::External(url))
@@ -253,7 +264,7 @@ fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Re
                             sessionStorage.setItem('TAURI_APP_FIRST_LOAD', '1');
                         }} else {{
                             hasConnectionIssue = true;
-                            
+
                             if (!!window.navigator.serviceWorker?.controller) {{
                                 setTimeout(() => __TAURI__.event.emit('handshake', window.__cpe_shim_tauri_challenge), 5000);
                             }}
