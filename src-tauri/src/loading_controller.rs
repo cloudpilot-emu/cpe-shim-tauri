@@ -33,9 +33,6 @@ const LABEL_APP: &str = "app";
 #[cfg(not(mobile))]
 const SPLASHSCREEN_URL: &str = "/splashscreen/index.html";
 
-#[cfg(mobile)]
-const INLINE_HTML_SPLASH: &str = include_str!("inline_splash.phtml");
-
 const TIMEOUT_SECONDS: u64 = 10;
 
 struct LoadGuard(Arc<Mutex<bool>>);
@@ -80,6 +77,8 @@ impl LoadingController {
         let app_url = get_app_url(channel);
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
+        println!("loading from channel: {}", channel);
+
         add_app_view(&app, Url::from_str(&app_url)?, challenge.as_str())?;
 
         listen_for_handshake(&app, challenge.clone(), tx);
@@ -94,7 +93,7 @@ impl LoadingController {
         let lock = LoadGuard::new(self.is_loading.clone());
 
         let challenge = "cpe";
-        let channel = get_app_channel(&app);
+        let channel = get_app_channel(app.clone());
         let app_url = get_app_url(channel);
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
@@ -184,6 +183,7 @@ fn wait_for_load(app: &AppHandle, mut rx: UnboundedReceiver<()>, url: String, lo
     });
 }
 
+#[cfg(not(mobile))]
 fn handle_handshake_timeout(app: &AppHandle, url: &str) {
     if let Some(splash_view) = app.get_webview(LABEL_SPLASH) {
         let _ = splash_view.eval("document.documentElement.classList.add('connection-issue');");
@@ -291,6 +291,8 @@ fn show_app_view(app: &AppHandle) {
 
 #[cfg(mobile)]
 fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Result<()> {
+    const INLINE_HTML_SPLASH: &str = include_str!("inline_splash.phtml");
+
     if let Some(window) = app.get_webview_window(LABEL_APP) {
         window.navigate(url)?;
     } else {

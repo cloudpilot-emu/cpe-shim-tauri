@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[derive(Clone, Copy)]
@@ -14,6 +16,15 @@ impl AppChannel {
             0 => Some(AppChannel::Preview),
             1 => Some(AppChannel::Stable),
             _ => None,
+        }
+    }
+}
+
+impl Display for AppChannel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Preview => write!(f, "{}", "preview"),
+            Self::Stable => write!(f, "{}", "stable"),
         }
     }
 }

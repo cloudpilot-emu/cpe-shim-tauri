@@ -9,23 +9,26 @@ mod version;
 
 use std::sync::Mutex;
 
-use tauri::{
-    ipc::RuntimeCapability,
-    utils::acl::capability::{Capability, CapabilityFile, CapabilityRemote},
-    webview::PageLoadEvent,
-    Manager,
-};
+use tauri::{webview::PageLoadEvent, Manager};
 use tauri_plugin_store::StoreExt;
 
 #[cfg(not(mobile))]
 use tauri::WindowBuilder;
 
-use crate::{
-    app_channel::AppChannel, loading_controller::LoadingController, state::State, url::get_app_url,
+use crate::{loading_controller::LoadingController, state::State};
+
+#[cfg(dev)]
+use tauri::{
+    ipc::RuntimeCapability,
+    utils::acl::capability::{Capability, CapabilityFile, CapabilityRemote},
 };
 
-struct CapabilityWrapper(Capability);
+#[cfg(dev)]
+use crate::{app_channel::AppChannel, url::get_app_url};
 
+#[cfg(dev)]
+struct CapabilityWrapper(Capability);
+#[cfg(dev)]
 impl RuntimeCapability for CapabilityWrapper {
     fn build(self) -> CapabilityFile {
         CapabilityFile::Capability(self.0)
@@ -83,6 +86,7 @@ pub fn run() {
             #[cfg(not(mobile))]
             WindowBuilder::new(app, "main")
                 .inner_size(800., 600.)
+                .title("CloudpilotEmu")
                 .build()?;
 
             app.state::<LoadingController>()
