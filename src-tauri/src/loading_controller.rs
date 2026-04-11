@@ -2,7 +2,7 @@ use std::{
     ops::DerefMut,
     str::FromStr,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use serde_json::{Number, Value};
@@ -34,6 +34,8 @@ const LABEL_APP: &str = "app";
 const SPLASHSCREEN_URL: &str = "/splashscreen/index.html";
 
 const TIMEOUT_SECONDS: u64 = 10;
+const SPLASH_SCREEN_MIN_TTL_MSEC: u64 = 500;
+const FALLBACK_HANDSHAKE_AFTER_MSEC: u64 = 5000;
 
 struct LoadGuard(Arc<Mutex<bool>>);
 
@@ -69,6 +71,7 @@ impl LoadingController {
     #[cfg(not(mobile))]
     pub fn load(&self, app: AppHandle) -> anyhow::Result<()> {
         let lock = LoadGuard::new(self.is_loading.clone());
+        let load_start_at = Instant::now();
 
         show_splash_view(&app)?;
 
@@ -83,7 +86,7 @@ impl LoadingController {
 
         listen_for_handshake(&app, challenge.clone(), tx);
 
-        wait_for_load(&app, rx, app_url, lock);
+        wait_for_load(&app, rx, app_url, load_start_at, lock);
 
         Ok(())
     }
@@ -91,6 +94,7 @@ impl LoadingController {
     #[cfg(mobile)]
     pub fn load(&self, app: AppHandle) -> anyhow::Result<()> {
         let lock = LoadGuard::new(self.is_loading.clone());
+        let load_start_at = Instant::now();
 
         let challenge = "cpe";
         let channel = get_app_channel(app.clone());
@@ -101,7 +105,7 @@ impl LoadingController {
 
         listen_for_handshake(&app, challenge.into(), tx);
 
-        wait_for_load(&app, rx, app_url, lock);
+        wait_for_load(&app, rx, app_url, load_start_at, lock);
 
         Ok(())
     }
@@ -163,7 +167,13 @@ fn listen_for_handshake(app: &AppHandle, challenge: String, tx: UnboundedSender<
     });
 }
 
-fn wait_for_load(app: &AppHandle, mut rx: UnboundedReceiver<()>, url: String, lock: LoadGuard) {
+fn wait_for_load(
+    app: &AppHandle,
+    mut rx: UnboundedReceiver<()>,
+    url: String,
+    load_start_at: Instant,
+    lock: LoadGuard,
+) {
     let app = app.clone();
 
     async_runtime::spawn(async move {
@@ -179,7 +189,7 @@ fn wait_for_load(app: &AppHandle, mut rx: UnboundedReceiver<()>, url: String, lo
             }
         }
 
-        handle_handshake(&app, lock);
+        handle_handshake(&app, load_start_at, lock).await;
     });
 }
 
@@ -195,7 +205,16 @@ fn handle_handshake_timeout(app: &AppHandle, url: &str) {
 }
 
 #[cfg(not(mobile))]
-fn handle_handshake(app: &AppHandle, lock: LoadGuard) {
+async fn handle_handshake(app: &AppHandle, load_start_at: Instant, lock: LoadGuard) {
+    let time_since_load = Instant::now().duration_since(load_start_at);
+
+    if (time_since_load.as_millis() as u64) < SPLASH_SCREEN_MIN_TTL_MSEC {
+        tokio::time::sleep(
+            Duration::from_millis(SPLASH_SCREEN_MIN_TTL_MSEC).saturating_sub(time_since_load),
+        )
+        .await;
+    }
+
     show_app_view(&app);
     drop(lock);
     let _ = remove_view(&app, LABEL_SPLASH);
@@ -267,10 +286,10 @@ fn add_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Result<()
                 }}
 
                 if (!!window.navigator.serviceWorker?.controller) {{
-                    setTimeout(() => __TAURI__.event.emit('handshake', window.__cpe_shim_tauri_challenge), 5000);
+                    setTimeout(() => __TAURI__.event.emit('handshake', window.__cpe_shim_tauri_challenge), {});
                 }}
             }})()
-        ", VERSION, challenge))
+        ", VERSION, challenge, FALLBACK_HANDSHAKE_AFTER_MSEC))
         .auto_resize();
 
     #[cfg(not(dev))]
@@ -313,7 +332,7 @@ fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Re
                             hasConnectionIssue = true;
 
                             if (!!window.navigator.serviceWorker?.controller) {{
-                                setTimeout(() => __TAURI__.event.emit('handshake', window.__cpe_shim_tauri_challenge), 5000);
+                                setTimeout(() => __TAURI__.event.emit('handshake', window.__cpe_shim_tauri_challenge), {});
                             }}
                         }}
 
@@ -329,7 +348,7 @@ fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Re
                             document.body.appendChild(splashElement);
                         }});
 
-                        const splashDelay = new Promise(r => setTimeout(r, 500));
+                        const splashDelay = new Promise(r => setTimeout(r, {}));
 
                         __TAURI__.event.listen('handshake', () => splashDelay.then(() => {{
                             const splashElement = document.getElementById('inline-splash');
@@ -341,7 +360,9 @@ fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Re
                 ",
                 VERSION,
                 challenge,
-                serde_json::to_string(INLINE_HTML_SPLASH)?
+                FALLBACK_HANDSHAKE_AFTER_MSEC,
+                serde_json::to_string(INLINE_HTML_SPLASH)?,
+                SPLASH_SCREEN_MIN_TTL_MSEC
             ));
 
         #[cfg(not(dev))]
@@ -364,7 +385,7 @@ fn handle_handshake_timeout(app: &AppHandle, url: &str) {
 }
 
 #[cfg(mobile)]
-fn handle_handshake(_app: &AppHandle, lock: LoadGuard) {
+async fn handle_handshake(_app: &AppHandle, _load_start_at: Instant, lock: LoadGuard) {
     // Nothing to do, we remove the splashscreen directly in JS
     drop(lock);
 }
