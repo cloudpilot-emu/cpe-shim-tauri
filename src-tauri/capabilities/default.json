@@ -13,7 +13,8 @@
   "remote": {
     "urls": [
       "https://cloudpilot-emu.github.io/app-preview/",
-      "https://cloudpilot-emu.github.io/app/"
+      "https://cloudpilot-emu.github.io/app/",
+      "https://cloudpilot-emu.github.io/"
     ]
   },
   "permissions": [
