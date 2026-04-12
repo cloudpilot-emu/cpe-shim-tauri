@@ -8,7 +8,8 @@
     "tauri-build": "tauri build -f tauri/unstable",
     "tauri-dev": "tauri dev -f tauri/unstable",
     "tauri-build-android": "tauri android build",
-    "tauri-dev-android": "tauri android dev"
+    "tauri-dev-android": "tauri android dev",
+    "tauri-android-init": "tauri android init && patch -p1 < android.patch && tauri icons"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"
