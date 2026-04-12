@@ -5,7 +5,6 @@ mod network_ffi;
 mod state;
 mod store_keys;
 mod url;
-mod version;
 
 use std::sync::Mutex;
 

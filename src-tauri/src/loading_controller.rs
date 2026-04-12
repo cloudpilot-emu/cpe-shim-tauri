@@ -23,7 +23,6 @@ use crate::{
     app_channel::AppChannel,
     store_keys::{self, key_worker_installed, KEY_APP_CHANNEL},
     url::get_app_url,
-    version::VERSION,
 };
 
 #[cfg(not(mobile))]
@@ -193,6 +192,12 @@ fn wait_for_load(
     });
 }
 
+fn get_version(app: &AppHandle) -> u32 {
+    let semver = &app.package_info().version;
+
+    ((semver.major << 16) | (semver.minor << 8) | semver.patch) as u32
+}
+
 #[cfg(not(mobile))]
 fn handle_handshake_timeout(app: &AppHandle, url: &str) {
     if let Some(splash_view) = app.get_webview(LABEL_SPLASH) {
@@ -289,7 +294,7 @@ fn add_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Result<()
                     setTimeout(() => __TAURI__.event.emit('handshake', window.__cpe_shim_tauri_challenge), {});
                 }}
             }})()
-        ", VERSION, challenge, FALLBACK_HANDSHAKE_AFTER_MSEC))
+        ", get_version(app), challenge, FALLBACK_HANDSHAKE_AFTER_MSEC))
         .auto_resize();
 
     #[cfg(not(dev))]
@@ -360,7 +365,7 @@ fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Re
                         }}));
                     }})()
                 ",
-                VERSION,
+                get_version(app),
                 challenge,
                 FALLBACK_HANDSHAKE_AFTER_MSEC,
                 serde_json::to_string(INLINE_HTML_SPLASH)?,
