@@ -320,7 +320,9 @@ fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Re
             .auto_resize()
             .initialization_script(format!(
                 "
-                    (function() {{                        
+                    (function() {{
+                        window.__TAURI__.app.onBackButtonPress(() => undefined);
+                                                
                         window.__cpe_shim_tauri_version = {};
                         window.__cpe_shim_tauri_challenge = '{}';
 
