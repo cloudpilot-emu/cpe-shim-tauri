@@ -11,9 +11,6 @@ use tauri_plugin_store::StoreExt;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 #[cfg(not(mobile))]
-use uuid::Uuid;
-
-#[cfg(not(mobile))]
 use tauri::{utils::config::BackgroundThrottlingPolicy, LogicalPosition, WebviewBuilder, Window};
 
 #[cfg(mobile)]
@@ -74,16 +71,15 @@ impl LoadingController {
 
         show_splash_view(&app)?;
 
-        let challenge = Uuid::new_v4().to_string();
         let channel = get_app_channel(app.clone());
         let app_url = get_app_url(channel);
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
         println!("loading from channel: {}", channel);
 
-        add_app_view(&app, Url::from_str(&app_url)?, challenge.as_str())?;
+        prepare_app_view(&app, Url::from_str(&app_url)?)?;
 
-        listen_for_handshake(&app, challenge.clone(), tx);
+        listen_for_handshake(&app, tx);
 
         wait_for_load(&app, rx, app_url, load_start_at, lock);
 
@@ -95,14 +91,13 @@ impl LoadingController {
         let lock = LoadGuard::new(self.is_loading.clone());
         let load_start_at = Instant::now();
 
-        let challenge = "cpe";
         let channel = get_app_channel(app.clone());
         let app_url = get_app_url(channel);
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
-        initialize_app_view(&app, Url::from_str(&app_url)?, challenge)?;
+        initialize_app_view(&app, Url::from_str(&app_url)?)?;
 
-        listen_for_handshake(&app, challenge.into(), tx);
+        listen_for_handshake(&app, tx);
 
         wait_for_load(&app, rx, app_url, load_start_at, lock);
 
@@ -149,20 +144,9 @@ pub fn switch_app_channel(app: AppHandle, channel: AppChannel) {
     reload(app.clone());
 }
 
-fn listen_for_handshake(app: &AppHandle, challenge: String, tx: UnboundedSender<()>) {
-    app.once("handshake", move |event| {
-        if let Ok(challenge_from_event) = serde_json::from_str::<String>(event.payload()) {
-            if challenge_from_event == challenge {
-                tx.send(()).unwrap();
-            } else {
-                println!(
-                    "received bad challenge from webview {}",
-                    challenge_from_event
-                );
-            }
-        } else {
-            println!("handshake with invalid payload {}", event.payload());
-        }
+fn listen_for_handshake(app: &AppHandle, tx: UnboundedSender<()>) {
+    app.once("handshake", move |_| {
+        tx.send(()).unwrap();
     });
 }
 
@@ -220,26 +204,26 @@ async fn handle_handshake(app: &AppHandle, load_start_at: Instant, lock: LoadGua
         .await;
     }
 
-    show_app_view(&app);
+    if let Ok(window) = get_window(app) {
+        if let Some(app_view) = window.get_webview(LABEL_APP) {
+            let _ = app_view.show();
+            let _ = app_view.eval("sessionStorage.removeItem('TAURI_APP_FIRST_LOAD');");
+        }
+
+        if let Some(splash_view) = window.get_webview(LABEL_SPLASH) {
+            let _ = splash_view.hide();
+            let _ =
+                splash_view.eval("document.documentElement.classList.remove('connection-issue');");
+        }
+    }
+
     drop(lock);
-    let _ = remove_view(&app, LABEL_SPLASH);
 }
 
 #[cfg(not(mobile))]
 fn get_window(app: &AppHandle) -> anyhow::Result<Window> {
     app.get_window("main")
         .ok_or(anyhow::format_err!("failed to retrieve window"))
-}
-
-#[cfg(not(mobile))]
-fn remove_view(app: &AppHandle, label: &str) -> anyhow::Result<()> {
-    let window = get_window(app)?;
-
-    if let Some(view) = window.get_webview(label) {
-        view.close()?;
-    }
-
-    Ok(())
 }
 
 #[cfg(not(dev))]
@@ -253,29 +237,40 @@ fn enable_dev_tools() -> bool {
 
 #[cfg(not(mobile))]
 fn show_splash_view(app: &AppHandle) -> anyhow::Result<()> {
-    remove_view(app, LABEL_SPLASH)?;
-
     let window = get_window(app)?;
 
-    let builder = WebviewBuilder::new(
-        LABEL_SPLASH,
-        tauri::WebviewUrl::App(SPLASHSCREEN_URL.into()),
-    )
-    .auto_resize();
+    if let Some(app_view) = window.get_webview(LABEL_APP) {
+        app_view.hide()?;
+    }
 
-    #[cfg(not(dev))]
-    let builder = builder.devtools(enable_dev_tools());
+    if let Some(splash_view) = window.get_webview(LABEL_SPLASH) {
+        splash_view.show()?;
+    } else {
+        let builder = WebviewBuilder::new(
+            LABEL_SPLASH,
+            tauri::WebviewUrl::App(SPLASHSCREEN_URL.into()),
+        )
+        .auto_resize();
 
-    let _ = window.add_child(builder, LogicalPosition::new(0, 0), window.inner_size()?)?;
+        #[cfg(not(dev))]
+        let builder = builder.devtools(enable_dev_tools());
+
+        let _ = window.add_child(builder, LogicalPosition::new(0, 0), window.inner_size()?)?;
+    }
 
     Ok(())
 }
 
 #[cfg(not(mobile))]
-fn add_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Result<()> {
-    remove_view(app, LABEL_APP)?;
-
+fn prepare_app_view(app: &AppHandle, url: Url) -> anyhow::Result<()> {
     let window = get_window(app)?;
+
+    if let Some(app_view) = window.get_webview(LABEL_APP) {
+        app_view.hide()?;
+        app_view.navigate(url)?;
+
+        return Ok(());
+    }
 
     let builder = WebviewBuilder::new(LABEL_APP, WebviewUrl::External(url))
         .background_throttling(BackgroundThrottlingPolicy::Disabled)
@@ -283,7 +278,7 @@ fn add_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Result<()
         .initialization_script(format!("
             (function() {{
                 window.__cpe_shim_tauri_version = {};
-                window.__cpe_shim_tauri_challenge = '{}';
+                window.__cpe_shim_tauri_challenge = 'cpe';
                 
                 if (sessionStorage.getItem('TAURI_APP_FIRST_LOAD') === null) {{
                     sessionStorage.setItem('TAURI_APP_FIRST_LOAD', '1');
@@ -294,7 +289,7 @@ fn add_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Result<()
                     setTimeout(() => __TAURI__.event.emit('handshake', window.__cpe_shim_tauri_challenge), {});
                 }}
             }})()
-        ", get_version(app), challenge, FALLBACK_HANDSHAKE_AFTER_MSEC))
+        ", get_version(app), FALLBACK_HANDSHAKE_AFTER_MSEC))
         .auto_resize();
 
     #[cfg(not(dev))]
@@ -306,15 +301,8 @@ fn add_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Result<()
     Ok(())
 }
 
-#[cfg(not(mobile))]
-fn show_app_view(app: &AppHandle) {
-    if let Some(app_view) = app.get_webview(LABEL_APP) {
-        let _ = app_view.show();
-    }
-}
-
 #[cfg(mobile)]
-fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Result<()> {
+fn initialize_app_view(app: &AppHandle, url: Url) -> anyhow::Result<()> {
     const INLINE_HTML_SPLASH: &str = include_str!("inline_splash.phtml");
 
     if let Some(window) = app.get_webview_window(LABEL_APP) {
@@ -329,7 +317,7 @@ fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Re
                         window.__TAURI__.app.onBackButtonPress(() => undefined);
                                                 
                         window.__cpe_shim_tauri_version = {};
-                        window.__cpe_shim_tauri_challenge = '{}';
+                        window.__cpe_shim_tauri_challenge = 'cpe';
 
                         let hasConnectionIssue = false;
 
@@ -366,7 +354,6 @@ fn initialize_app_view(app: &AppHandle, url: Url, challenge: &str) -> anyhow::Re
                     }})()
                 ",
                 get_version(app),
-                challenge,
                 FALLBACK_HANDSHAKE_AFTER_MSEC,
                 serde_json::to_string(INLINE_HTML_SPLASH)?,
                 SPLASH_SCREEN_MIN_TTL_MSEC
