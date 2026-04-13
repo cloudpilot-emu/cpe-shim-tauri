@@ -35,7 +35,7 @@ impl RuntimeCapability for CapabilityWrapper {
 }
 
 #[cfg(dev)]
-pub fn add_dev_capabilities(app: &mut tauri::App) -> anyhow::Result<()> {
+fn add_dev_capabilities(app: &mut tauri::App) -> anyhow::Result<()> {
     const DEFAULT_CAPABILITY: &str = include_str!("../capabilities/default.json");
 
     let mut capability = serde_json::from_str::<Capability>(DEFAULT_CAPABILITY)?;
@@ -43,14 +43,24 @@ pub fn add_dev_capabilities(app: &mut tauri::App) -> anyhow::Result<()> {
     capability.identifier = "dev".into();
     capability.remote = Some(CapabilityRemote {
         urls: vec![
-            get_app_url(AppChannel::Preview),
-            get_app_url(AppChannel::Stable),
+            normalize_url(&get_app_url(AppChannel::Preview))?,
+            normalize_url(&get_app_url(AppChannel::Stable))?,
         ],
     });
 
     app.add_capability(CapabilityWrapper(capability))?;
 
     Ok(())
+}
+
+#[cfg(dev)]
+fn normalize_url(url: &str) -> anyhow::Result<String> {
+    let mut parsed = tauri::Url::parse(url)?;
+
+    parsed.set_fragment(None);
+    parsed.set_query(None);
+
+    Ok(parsed.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

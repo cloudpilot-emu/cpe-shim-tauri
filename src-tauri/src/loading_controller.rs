@@ -33,6 +33,8 @@ const TIMEOUT_SECONDS: u64 = 10;
 const SPLASH_SCREEN_MIN_TTL_MSEC: u64 = 500;
 const FALLBACK_HANDSHAKE_AFTER_MSEC: u64 = 5000;
 
+const FRAGMENT_MAGIC: &str = "f55df283-698e-4ed4-ad5f-6617984e1ca3";
+
 struct LoadGuard(Arc<Mutex<bool>>);
 
 impl Drop for LoadGuard {
@@ -72,7 +74,7 @@ impl LoadingController {
         show_splash_view(&app)?;
 
         let channel = get_app_channel(app.clone());
-        let app_url = get_app_url(channel);
+        let app_url = format_app_url(&get_app_url(channel), get_version(&app));
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
         println!("loading from channel: {}", channel);
@@ -92,7 +94,7 @@ impl LoadingController {
         let load_start_at = Instant::now();
 
         let channel = get_app_channel(app.clone());
-        let app_url = get_app_url(channel);
+        let app_url = format_app_url(&get_app_url(channel), get_version(&app));
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
         initialize_app_view(&app, Url::from_str(&app_url)?)?;
@@ -103,6 +105,10 @@ impl LoadingController {
 
         Ok(())
     }
+}
+
+fn format_app_url(url: &str, version: u32) -> String {
+    format!("{}#{}-{}", url, FRAGMENT_MAGIC, version).into()
 }
 
 #[tauri::command]
@@ -267,6 +273,7 @@ fn prepare_app_view(app: &AppHandle, url: Url) -> anyhow::Result<()> {
 
     if let Some(app_view) = window.get_webview(LABEL_APP) {
         app_view.hide()?;
+
         app_view.navigate(url)?;
 
         return Ok(());
@@ -279,6 +286,9 @@ fn prepare_app_view(app: &AppHandle, url: Url) -> anyhow::Result<()> {
             (function() {{
                 window.__cpe_shim_tauri_version = {};
                 window.__cpe_shim_tauri_challenge = 'cpe';
+
+                if (window.__cpe_shim_tauri_bootstrap_cb) window.__cpe_shim_tauri_bootstrap_cb();
+                if (window.__cpe_shim_tauri_handshake_sent) return;
                 
                 if (sessionStorage.getItem('TAURI_APP_FIRST_LOAD') === null) {{
                     sessionStorage.setItem('TAURI_APP_FIRST_LOAD', '1');
@@ -319,6 +329,9 @@ fn initialize_app_view(app: &AppHandle, url: Url) -> anyhow::Result<()> {
                         window.__cpe_shim_tauri_version = {};
                         window.__cpe_shim_tauri_challenge = 'cpe';
 
+                        if (window.__cpe_shim_tauri_bootstrap_cb) window.__cpe_shim_tauri_bootstrap_cb();
+                        if (window.__cpe_shim_tauri_handshake_sent) return;
+
                         let hasConnectionIssue = false;
 
                         if (sessionStorage.getItem('TAURI_APP_FIRST_LOAD') === null) {{
@@ -332,8 +345,7 @@ fn initialize_app_view(app: &AppHandle, url: Url) -> anyhow::Result<()> {
                         }}
 
                         const html = {};
-
-                        document.addEventListener('DOMContentLoaded', () => {{
+                        const showSplash = () => {{
                             const splashElement = document.createElement('div');
                             
                             splashElement.id = 'inline-splash';
@@ -341,8 +353,14 @@ fn initialize_app_view(app: &AppHandle, url: Url) -> anyhow::Result<()> {
                             if (hasConnectionIssue) splashElement.classList.add('connection-issue');
 
                             document.body.appendChild(splashElement);
-                        }});
+                        }};
 
+                        if (document.readyState !== 'loading') {{
+                            showSplash();
+                        }} else {{
+                            document.addEventListener('DOMContentLoaded', showSplash);
+                        }}
+                    
                         const splashDelay = new Promise(r => setTimeout(r, {}));
 
                         __TAURI__.event.listen('handshake', () => splashDelay.then(() => {{
