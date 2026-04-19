@@ -6,7 +6,7 @@ use std::{
 };
 
 use serde_json::{Number, Value};
-use tauri::{async_runtime, AppHandle, Listener, Manager, Url, WebviewUrl};
+use tauri::{async_runtime, AppHandle, Listener, Manager, Url, Webview, WebviewUrl};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -29,7 +29,7 @@ const LABEL_APP: &str = "app";
 #[cfg(not(mobile))]
 const SPLASHSCREEN_URL: &str = "/splashscreen/index.html";
 
-const TIMEOUT_SECONDS: u64 = 10;
+const HANDSHAKE_TIMEOUT_SECONDS: u64 = 10;
 const SPLASH_SCREEN_MIN_TTL_MSEC: u64 = 500;
 const FALLBACK_HANDSHAKE_AFTER_MSEC: u64 = 5000;
 
@@ -63,6 +63,7 @@ impl LoadGuard {
 #[derive(Default)]
 pub struct LoadingController {
     is_loading: Arc<Mutex<bool>>,
+    first_load_attempt: Mutex<bool>,
 }
 
 impl LoadingController {
@@ -70,6 +71,7 @@ impl LoadingController {
     pub fn load(&self, app: AppHandle) -> anyhow::Result<()> {
         let lock = LoadGuard::new(self.is_loading.clone());
         let load_start_at = Instant::now();
+        *self.first_load_attempt.lock().unwrap().deref_mut() = true;
 
         show_splash_view(&app)?;
 
@@ -92,6 +94,7 @@ impl LoadingController {
     pub fn load(&self, app: AppHandle) -> anyhow::Result<()> {
         let lock = LoadGuard::new(self.is_loading.clone());
         let load_start_at = Instant::now();
+        *self.first_load_attempt.lock().unwrap().deref_mut() = true;
 
         let channel = get_app_channel(app.clone());
         let app_url = format_app_url(&get_app_url(channel), get_version(&app));
@@ -108,7 +111,7 @@ impl LoadingController {
 }
 
 fn format_app_url(url: &str, version: u32) -> String {
-    format!("{}#{}-{}", url, FRAGMENT_MAGIC, version).into()
+    format!("{}#{}-{}", url, FRAGMENT_MAGIC, version)
 }
 
 #[tauri::command]
@@ -167,7 +170,12 @@ fn wait_for_load(
 
     async_runtime::spawn(async move {
         loop {
-            match tokio::time::timeout(Duration::from_secs(TIMEOUT_SECONDS), rx.recv()).await {
+            match tokio::time::timeout(
+                Duration::from_secs(handshake_timeout_seconds(&app)),
+                rx.recv(),
+            )
+            .await
+            {
                 Ok(Some(())) => break,
                 Ok(None) => panic!("unreachable: channel closed"),
                 Err(_) => {
@@ -188,15 +196,93 @@ fn get_version(app: &AppHandle) -> u32 {
     ((semver.major << 16) | (semver.minor << 8) | semver.patch) as u32
 }
 
-#[cfg(not(mobile))]
-fn handle_handshake_timeout(app: &AppHandle, url: &str) {
-    if let Some(splash_view) = app.get_webview(LABEL_SPLASH) {
-        let _ = splash_view.eval("document.documentElement.classList.add('connection-issue');");
+#[cfg(target_os = "macos")]
+fn worker_installed(app: &AppHandle) -> bool {
+    let store = app.store(store_keys::STORE_NAME).unwrap();
+
+    store
+        .get(key_worker_installed(get_app_channel(app.clone())))
+        .as_ref()
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn handshake_timeout_seconds(_app: &AppHandle) -> u64 {
+    HANDSHAKE_TIMEOUT_SECONDS
+}
+
+#[cfg(target_os = "macos")]
+fn handshake_timeout_seconds(app: &AppHandle) -> u64 {
+    let loading_controller = app.state::<LoadingController>();
+
+    if !*loading_controller.first_load_attempt.lock().unwrap() {
+        return HANDSHAKE_TIMEOUT_SECONDS;
     }
 
-    if let Some(app_view) = app.get_webview(LABEL_APP) {
+    if worker_installed(app) {
+        3
+    } else {
+        HANDSHAKE_TIMEOUT_SECONDS
+    }
+}
+
+#[cfg(not(mobile))]
+fn handle_handshake_timeout(app: &AppHandle, url: &str) {
+    let loading_controller = app.state::<LoadingController>();
+    let mut connection_issue = true;
+
+    if let Some(app_view) = app.get_webview(LABEL_APP).as_mut() {
+        #[cfg(target_os = "macos")]
+        {
+            if *loading_controller.first_load_attempt.lock().unwrap() && worker_installed(app) {
+                macos_navigate_force_cache(app_view, url.into());
+                connection_issue = false;
+            } else {
+                let _ = app_view.navigate(Url::from_str(url).unwrap());
+            }
+        }
+
+        #[cfg(not(target_os = "macos"))]
         let _ = app_view.navigate(Url::from_str(url).unwrap());
     }
+
+    if connection_issue {
+        if let Some(splash_view) = app.get_webview(LABEL_SPLASH) {
+            let _ = splash_view.eval("document.documentElement.classList.add('connection-issue');");
+        }
+    }
+
+    *loading_controller
+        .first_load_attempt
+        .lock()
+        .unwrap()
+        .deref_mut() = false;
+}
+
+#[cfg(target_os = "macos")]
+fn macos_navigate_force_cache(webview: &mut Webview, url: String) {
+    println!("forcing load from cache for {}", url);
+
+    webview
+        .with_webview(move |handle| unsafe {
+            use objc2_foundation::{NSString, NSURLRequest, NSURLRequestCachePolicy, NSURL};
+            use objc2_web_kit::WKWebView;
+
+            let wk_webview: &WKWebView = &*handle.inner().cast();
+
+            let url = NSString::from_str(&url);
+            let ns_url = NSURL::URLWithString(&url).unwrap();
+
+            let req = NSURLRequest::requestWithURL_cachePolicy_timeoutInterval(
+                &ns_url,
+                NSURLRequestCachePolicy::ReturnCacheDataElseLoad,
+                60.0,
+            );
+
+            let _ = wk_webview.loadRequest(&req);
+        })
+        .unwrap();
 }
 
 #[cfg(not(mobile))]
