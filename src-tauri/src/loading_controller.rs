@@ -18,6 +18,7 @@ use tauri::WebviewWindowBuilder;
 
 use crate::{
     app_channel::AppChannel,
+    platform::Platform,
     store_keys::{self, key_worker_installed, KEY_APP_CHANNEL},
     url::get_app_url,
 };
@@ -193,7 +194,8 @@ fn wait_for_load(
 fn get_version(app: &AppHandle) -> u32 {
     let semver = &app.package_info().version;
 
-    ((semver.major << 16) | (semver.minor << 8) | semver.patch) as u32
+    ((Platform::get() as u32) << 24)
+        | ((semver.major << 16) | (semver.minor << 8) | semver.patch) as u32
 }
 
 #[cfg(target_os = "macos")]

@@ -2,6 +2,7 @@ mod app_channel;
 mod loading_controller;
 mod network;
 mod network_ffi;
+mod platform;
 mod state;
 mod store_keys;
 mod url;
