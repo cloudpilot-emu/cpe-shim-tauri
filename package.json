@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "tauri": "tauri",
-    "tauri-build": "tauri build -f tauri/unstable",
+    "tauri-build": "env-cmd -f .env -- tauri build -f tauri/unstable",
     "tauri-dev": "tauri dev -f tauri/unstable",
-    "tauri-build-android": "tauri android build",
+    "tauri-build-android": "env-cmd -f .env -- tauri android build",
     "tauri-dev-android": "tauri android dev",
     "tauri-android-init": "tauri android init && patch -p1 < android.patch && tauri icon"
   },
@@ -17,6 +17,8 @@
   "dependencies": {
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
-    "@tauri-apps/plugin-store": "^2.4.2"
+    "@tauri-apps/plugin-store": "^2.4.2",
+    "@tauri-apps/plugin-updater": "^2.10.1",
+    "env-cmd": "^11.0.0"
   }
 }

@@ -1,1 +1,1 @@
-android_signing/** filter=git-crypt diff=git-crypt
+signing/** filter=git-crypt diff=git-crypt
