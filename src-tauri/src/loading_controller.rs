@@ -6,7 +6,7 @@ use std::{
 };
 
 use serde_json::{Number, Value};
-use tauri::{async_runtime, AppHandle, Listener, Manager, Url, Webview, WebviewUrl};
+use tauri::{async_runtime, AppHandle, Listener, Manager, Url, WebviewUrl};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -232,7 +232,12 @@ fn handshake_timeout_seconds(app: &AppHandle) -> u64 {
 #[cfg(not(mobile))]
 fn handle_handshake_timeout(app: &AppHandle, url: &str) {
     let loading_controller = app.state::<LoadingController>();
+
+    #[cfg(target_os = "macos")]
     let mut connection_issue = true;
+
+    #[cfg(not(target_os = "macos"))]
+    let connection_issue = true;
 
     if let Some(app_view) = app.get_webview(LABEL_APP).as_mut() {
         #[cfg(target_os = "macos")]
@@ -263,7 +268,7 @@ fn handle_handshake_timeout(app: &AppHandle, url: &str) {
 }
 
 #[cfg(target_os = "macos")]
-fn macos_navigate_force_cache(webview: &mut Webview, url: String) {
+fn macos_navigate_force_cache(webview: &mut tauri::Webview, url: String) {
     println!("forcing load from cache for {}", url);
 
     webview
