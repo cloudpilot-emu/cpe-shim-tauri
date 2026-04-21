@@ -70,6 +70,10 @@ pub struct LoadingController {
 impl LoadingController {
     #[cfg(not(mobile))]
     pub fn load(&self, app: AppHandle) -> anyhow::Result<()> {
+        if *self.is_loading.lock().unwrap() {
+            return Ok(());
+        }
+
         let lock = LoadGuard::new(self.is_loading.clone());
         let load_start_at = Instant::now();
         *self.first_load_attempt.lock().unwrap().deref_mut() = true;
@@ -93,6 +97,10 @@ impl LoadingController {
 
     #[cfg(mobile)]
     pub fn load(&self, app: AppHandle) -> anyhow::Result<()> {
+        if *self.is_loading.lock().unwrap() {
+            return Ok(());
+        }
+
         let lock = LoadGuard::new(self.is_loading.clone());
         let load_start_at = Instant::now();
         *self.first_load_attempt.lock().unwrap().deref_mut() = true;
