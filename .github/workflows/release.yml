@@ -1,0 +1,306 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  validate-version:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tauri.conf.json version matches tag
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          CONF_VERSION="$(jq -r .version src-tauri/tauri.conf.json)"
+          if [ "$TAG" != "$CONF_VERSION" ]; then
+            echo "::error::Tag ($TAG) does not match version in tauri.conf.json ($CONF_VERSION)"
+            exit 1
+          fi
+          echo "Version $TAG confirmed."
+
+  build-macos:
+    needs: validate-version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install git-crypt
+        run: brew install git-crypt
+
+      - name: Unlock signing keys
+        shell: bash
+        env:
+          GIT_CRYPT_KEY: ${{ secrets.GIT_CRYPT_KEY }}
+        run: echo "$GIT_CRYPT_KEY" | base64 -d > /tmp/key && git-crypt unlock /tmp/key && rm /tmp/key
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm install
+
+      - name: Build
+        run: npm run tauri-build
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          body: |
+            ## What's New
+
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
+            tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
+            quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+
+            ## Downloads
+
+            | Platform | File |
+            |----------|------|
+            | macOS | `.dmg` |
+            | Linux | `.AppImage` |
+            | Windows | `*-setup.exe` (NSIS) or `.msi` |
+            | Android | `.apk` |
+
+            Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore
+            eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt
+            in culpa qui officia deserunt mollit anim id est laborum.
+          files: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app.tar.gz
+
+      - name: Stage updater signature
+        run: |
+          mkdir updater-staging
+          cp src-tauri/target/release/bundle/macos/*.app.tar.gz.sig updater-staging/signature
+          basename src-tauri/target/release/bundle/macos/*.app.tar.gz > updater-staging/filename
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updater-sig-darwin-aarch64
+          path: updater-staging/
+
+  build-linux:
+    needs: validate-version
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y git-crypt patchelf librsvg2-dev libwebkit2gtk-4.1-dev
+
+      - name: Unlock signing keys
+        shell: bash
+        env:
+          GIT_CRYPT_KEY: ${{ secrets.GIT_CRYPT_KEY }}
+        run: echo "$GIT_CRYPT_KEY" | base64 -d > /tmp/key && git-crypt unlock /tmp/key && rm /tmp/key
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm install
+
+      - name: Build
+        run: npm run tauri-build
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: src-tauri/target/release/bundle/appimage/*.AppImage
+
+      - name: Stage updater signature
+        run: |
+          mkdir updater-staging
+          cp src-tauri/target/release/bundle/appimage/*.AppImage.sig updater-staging/signature
+          basename src-tauri/target/release/bundle/appimage/*.AppImage > updater-staging/filename
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updater-sig-linux-x86_64
+          path: updater-staging/
+
+  build-windows:
+    needs: validate-version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install git-crypt
+        shell: pwsh
+        run: scoop install git-crypt
+
+      - name: Unlock signing keys
+        shell: bash
+        env:
+          GIT_CRYPT_KEY: ${{ secrets.GIT_CRYPT_KEY }}
+        run: echo "$GIT_CRYPT_KEY" | base64 -d > /tmp/key && git-crypt unlock /tmp/key && rm /tmp/key
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm install
+
+      - name: Build
+        run: npm run tauri-build
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*_x64_en-US.msi
+
+      - name: Stage updater signature
+        shell: bash
+        run: |
+          mkdir updater-staging
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe.sig updater-staging/signature
+          basename src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe > updater-staging/filename
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updater-sig-windows-x86_64
+          path: updater-staging/
+
+  build-android:
+    needs: validate-version
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install git-crypt
+        run: sudo apt-get update && sudo apt-get install -y git-crypt
+
+      - name: Unlock signing keys
+        shell: bash
+        env:
+          GIT_CRYPT_KEY: ${{ secrets.GIT_CRYPT_KEY }}
+        run: echo "$GIT_CRYPT_KEY" | base64 -d > /tmp/key && git-crypt unlock /tmp/key && rm /tmp/key
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: sdkmanager "ndk;27.0.12077973"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm install
+
+      - name: Initialize Android project
+        run: npm run tauri-android-init
+
+      - name: Build Android
+        run: npm run tauri-build-android
+
+      - name: Sign APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          TAG=${GITHUB_REF_NAME}
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -1)
+          $APKSIGNER sign \
+            --ks signing/keystore.jks \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --ks-key-alias signing \
+            --out cloudpilotemu-$TAG.apk \
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: cloudpilotemu-*.apk
+
+  update-json:
+    runs-on: ubuntu-22.04
+    needs: [build-macos, build-linux, build-windows]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: updater-sig-*
+
+      - name: Build tauri-updates.json
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          REPO="${GITHUB_REPOSITORY}"
+
+          read_platform() {
+            local dir="$1"
+            local sig
+            local filename
+            sig="$(cat "$dir/signature")"
+            filename="$(cat "$dir/filename")"
+            echo "{\"signature\":\"$sig\",\"url\":\"https://github.com/$REPO/releases/download/$TAG/$filename\"}"
+          }
+
+          DARWIN=$(read_platform updater-sig-darwin-aarch64)
+          LINUX=$(read_platform updater-sig-linux-x86_64)
+          WINDOWS=$(read_platform updater-sig-windows-x86_64)
+
+          cat > tauri-updates.json <<EOF
+          {
+            "version": "$TAG",
+            "pub_date": "$PUB_DATE",
+            "platforms": {
+              "darwin-aarch64": $DARWIN,
+              "linux-x86_64": $LINUX,
+              "windows-x86_64": $WINDOWS
+            }
+          }
+          EOF
+
+          echo "--- tauri-updates.json ---"
+          cat tauri-updates.json
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: tauri-updates.json
