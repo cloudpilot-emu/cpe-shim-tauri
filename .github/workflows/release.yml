@@ -182,7 +182,10 @@ jobs:
 
       - name: Install git-crypt
         shell: pwsh
-        run: choco install git-crypt -y
+        run: |
+          iex "& {$(irm get.scoop.sh)} -RunAsAdmin"
+          scoop install git-crypt
+          Join-Path $env:USERPROFILE "scoop\shims" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
       - name: Unlock signing keys
         shell: bash
