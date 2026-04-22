@@ -46,7 +46,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "../signing/updater.key.pub",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IHJzaWduIGVuY3J5cHRlZCBzZWNyZXQga2V5ClJXUlRZMEl5dk9ySVNVT0JqaEJNRWFrRWZ6dk4veUNjNXY1WDBHczc4bzFSMkw0YjNsTUFBQkFBQUFBQUFBQUFBQUlBQUFBQWxqUmF0Tms3UVoyblcrTXNxRGt5T0NMdzQ5dFN6aWQ4VjRuQ1FUaFV4dmZPWWZPVmp0d3ltbXppWnBnOGN4aFV3bTcyRzl6ZUFIN1BXT3N0djc0SkMwdzRkVTdLdGdUclZZejBhSlpSOWhDMGpvTFo0dWhQN2V6dDdDNFFQNkozOFd5WS9GVHRSbkE9Cg==",
       "endpoints": [
         "https://cloudpilot-emu.github.io/tauri-updates.json"
       ]
