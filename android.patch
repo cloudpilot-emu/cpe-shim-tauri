@@ -1,25 +1,3 @@
-diff --git a/android.patch b/android.patch
-index 0b700ce..e69de29 100644
---- a/android.patch
-+++ b/android.patch
-@@ -1,17 +0,0 @@
--diff --git a/src-tauri/gen/android/app/src/main/java/io/github/cloudpilotemu/MainActivity.kt b/src-tauri/gen/android/app/src/main/java/io/github/cloudpilotemu/MainActivity.kt
--index 5428306..93489f8 100644
----- a/src-tauri/gen/android/app/src/main/java/io/github/cloudpilotemu/MainActivity.kt
--+++ b/src-tauri/gen/android/app/src/main/java/io/github/cloudpilotemu/MainActivity.kt
--@@ -2,10 +2,12 @@ package io.github.cloudpilotemu
-- 
-- import android.os.Bundle
-- import androidx.activity.enableEdgeToEdge
--+import androidx.core.view.WindowCompat
-- 
-- class MainActivity : TauriActivity() {
--   override fun onCreate(savedInstanceState: Bundle?) {
--     enableEdgeToEdge()
--     super.onCreate(savedInstanceState)
--+    WindowCompat.setDecorFitsSystemWindows(window, true)
--   }
-- }
 diff --git a/src-tauri/gen/android/app/src/main/java/io/github/cloudpilotemu/MainActivity.kt b/src-tauri/gen/android/app/src/main/java/io/github/cloudpilotemu/MainActivity.kt
 index 5428306..41b2edd 100644
 --- a/src-tauri/gen/android/app/src/main/java/io/github/cloudpilotemu/MainActivity.kt
