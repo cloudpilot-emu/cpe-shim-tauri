@@ -80,27 +80,16 @@ jobs:
           body: |
             ## General notes
 
-            CloudpilotEmu is a web app. The native app is a shim that run CloudpilotEmu in a sytem web
-            view which offers seamless access to the host clipboard and network (if configured
-            in the settings). The app will take a few seconds on first start to load its service worker
-            which will enable offline operation. You can switch between the preview and native buulds
-            of CloudpilotEmu on the settings page.
+            CloudpilotEmu is a web app. The native app is a shim that run CloudpilotEmu in a sytem web view which offers seamless access to the host clipboard and network (if configured in the settings). The app will take a few seconds on first start to load its service worker which will enable offline operation. You can switch between the preview and native buulds of CloudpilotEmu on the settings page.
 
-            If you run into any issues with the native app you can always head over to the
-            [web page](https://cloudpilot-emu.github.io) and run CloudpilotEmu in your browser.
-            The web app runs in any resonably recent browser and has the same performance and feature set, apart from
-            clipboard integration (which requests confirmation prompts) and networking (which needs
-            a [proxy](https://github.com/cloudpilot-emu/cloudpilot-emu) to work on the web app).
+            If you run into any issues with the native app you can always head over to the [web page](https://cloudpilot-emu.github.io) and run CloudpilotEmu in your browser. The web app runs in any resonably recent browser and has the same performance and feature set, apart from clipboard integration (which requests confirmation prompts) and networking (which needs a [proxy](https://github.com/cloudpilot-emu/cloudpilot-emu) to work on the web app).
 
             ## Known issues
 
             * **Android**: Old versions of Android may have trouble loading the app.
-            * **Android**: The app requires a recent version of Chrome or (on newer devices) the
-              system webview.
-            * **Android**: Due to idiosyncrasies of Android's webview, the native ap may
-              be very slightly lower than the web app running on chrome.
-            * **MacOS**: Starting the app without an internet connection will stall for a few seconds
-              before the app loads.
+            * **Android**: The app requires a recent version of Chrome or (on newer devices) the system webview.
+            * **Android**: Due to idiosyncrasies of Android's webview, the native ap may be very slightly lower than the web app running on chrome.
+            * **MacOS**: Starting the app without an internet connection will stall for a few seconds before the app loads.
             * **Linux**: The app will not start without an internet connection.
 
             ## Executable downloads
