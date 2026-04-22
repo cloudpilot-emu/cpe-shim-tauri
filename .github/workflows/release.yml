@@ -4,6 +4,19 @@ on:
   push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to build"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - macos
+          - linux
+          - windows
+          - android
 
 permissions:
   contents: write
@@ -15,6 +28,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Check tauri.conf.json version matches tag
+        if: github.event_name == 'push'
         run: |
           TAG="${GITHUB_REF_NAME}"
           CONF_VERSION="$(jq -r .version src-tauri/tauri.conf.json)"
@@ -26,6 +40,7 @@ jobs:
 
   build-macos:
     needs: validate-version
+    if: github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'macos'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +71,12 @@ jobs:
       - name: Build
         run: npm run tauri-build
 
+      - name: List build output
+        if: always()
+        run: ls -R src-tauri/target/release/bundle/ || true
+
       - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push'
         with:
           draft: true
           body: |
@@ -83,18 +103,21 @@ jobs:
             src-tauri/target/release/bundle/macos/*.app.tar.gz
 
       - name: Stage updater signature
+        if: github.event_name == 'push'
         run: |
           mkdir updater-staging
           cp src-tauri/target/release/bundle/macos/*.app.tar.gz.sig updater-staging/signature
           basename src-tauri/target/release/bundle/macos/*.app.tar.gz > updater-staging/filename
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
         with:
           name: updater-sig-darwin-aarch64
           path: updater-staging/
 
   build-linux:
     needs: validate-version
+    if: github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'linux'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -125,24 +148,32 @@ jobs:
       - name: Build
         run: npm run tauri-build
 
+      - name: List build output
+        if: always()
+        run: ls -R src-tauri/target/release/bundle/ || true
+
       - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push'
         with:
           draft: true
           files: src-tauri/target/release/bundle/appimage/*.AppImage
 
       - name: Stage updater signature
+        if: github.event_name == 'push'
         run: |
           mkdir updater-staging
           cp src-tauri/target/release/bundle/appimage/*.AppImage.sig updater-staging/signature
           basename src-tauri/target/release/bundle/appimage/*.AppImage > updater-staging/filename
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
         with:
           name: updater-sig-linux-x86_64
           path: updater-staging/
 
   build-windows:
     needs: validate-version
+    if: github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'windows'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -174,27 +205,36 @@ jobs:
       - name: Build
         run: npm run tauri-build
 
+      - name: List build output
+        if: always()
+        shell: bash
+        run: ls -R src-tauri/target/release/bundle/ || true
+
       - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push'
         with:
           draft: true
           files: |
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*_x64_en-US.msi
+            src-tauri/target/release/bundle/nsis/*_x64-setup.exe
+            src-tauri/target/release/bundle/msi/*_x64_en-US.msi
 
       - name: Stage updater signature
+        if: github.event_name == 'push'
         shell: bash
         run: |
           mkdir updater-staging
-          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe.sig updater-staging/signature
-          basename src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*_x64-setup.exe > updater-staging/filename
+          cp src-tauri/target/release/bundle/nsis/*_x64-setup.exe.sig updater-staging/signature
+          basename src-tauri/target/release/bundle/nsis/*_x64-setup.exe > updater-staging/filename
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
         with:
           name: updater-sig-windows-x86_64
           path: updater-staging/
 
   build-android:
     needs: validate-version
+    if: github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'android'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -240,7 +280,12 @@ jobs:
       - name: Build Android
         run: npm run tauri-build-android
 
+      - name: List build output
+        if: always()
+        run: ls -R src-tauri/gen/android/app/build/outputs/ || true
+
       - name: Sign APK
+        if: github.event_name == 'push'
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
@@ -254,11 +299,13 @@ jobs:
             src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
 
       - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push'
         with:
           draft: true
           files: cloudpilotemu-*.apk
 
   update-json:
+    if: github.event_name == 'push'
     runs-on: ubuntu-22.04
     needs: [build-macos, build-linux, build-windows]
     steps:
