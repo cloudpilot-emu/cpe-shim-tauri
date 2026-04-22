@@ -182,7 +182,7 @@ jobs:
 
       - name: Install git-crypt
         shell: pwsh
-        run: scoop install git-crypt
+        run: choco install git-crypt -y
 
       - name: Unlock signing keys
         shell: bash
