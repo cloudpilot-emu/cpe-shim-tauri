@@ -71,10 +71,6 @@ jobs:
       - name: Build
         run: npm run tauri-build
 
-      - name: List build output
-        if: always()
-        run: ls -R src-tauri/target/release/bundle/ || true
-
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'push'
         with:
@@ -148,10 +144,6 @@ jobs:
       - name: Build
         run: npm run tauri-build
 
-      - name: List build output
-        if: always()
-        run: ls -R src-tauri/target/release/bundle/ || true
-
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'push'
         with:
@@ -207,11 +199,6 @@ jobs:
 
       - name: Build
         run: npm run tauri-build
-
-      - name: List build output
-        if: always()
-        shell: bash
-        run: ls -R src-tauri/target/release/bundle/ || true
 
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'push'
@@ -282,10 +269,6 @@ jobs:
 
       - name: Build Android
         run: npm run tauri-build-android
-
-      - name: List build output
-        if: always()
-        run: ls -R src-tauri/gen/android/app/build/outputs/ || true
 
       - name: Sign APK
         if: github.event_name == 'push'
