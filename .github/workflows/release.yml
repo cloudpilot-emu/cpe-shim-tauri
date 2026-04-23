@@ -98,7 +98,7 @@ jobs:
             |----------|------|
             | macOS (Apple Silicon)| `.dmg` |
             | Linux (amd64) | `.AppImage` |
-            | Linux (arm64) | `.AppImage` |
+            | Linux (aarch64) | `.AppImage` |
             | Windows (amd64) | `*-setup.exe` (NSIS) or `.msi` |
             | Android | `.apk` |
           files: |
