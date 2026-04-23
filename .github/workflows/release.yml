@@ -98,6 +98,7 @@ jobs:
             |----------|------|
             | macOS (Apple Silicon)| `.dmg` |
             | Linux (amd64) | `.AppImage` |
+            | Linux (arm64) | `.AppImage` |
             | Windows (amd64) | `*-setup.exe` (NSIS) or `.msi` |
             | Android | `.apk` |
           files: |
@@ -121,7 +122,14 @@ jobs:
     needs: validate-version
     if: github.event_name == 'push' || inputs.platform == 'all' || inputs.platform
       == 'linux'
-    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: x86_64
+          - runner: ubuntu-22.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -169,7 +177,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push'
         with:
-          name: updater-sig-linux-x86_64
+          name: updater-sig-linux-${{ matrix.arch }}
           path: updater-staging/
 
   build-windows:
@@ -328,7 +336,8 @@ jobs:
           }
 
           DARWIN=$(read_platform updater-sig-darwin-aarch64)
-          LINUX=$(read_platform updater-sig-linux-x86_64)
+          LINUX_X86_64=$(read_platform updater-sig-linux-x86_64)
+          LINUX_AARCH64=$(read_platform updater-sig-linux-aarch64)
           WINDOWS=$(read_platform updater-sig-windows-x86_64)
 
           cat > tauri-updates.json <<EOF
@@ -337,7 +346,8 @@ jobs:
             "pub_date": "$PUB_DATE",
             "platforms": {
               "darwin-aarch64": $DARWIN,
-              "linux-x86_64": $LINUX,
+              "linux-x86_64": $LINUX_X86_64,
+              "linux-aarch64": $LINUX_AARCH64,
               "windows-x86_64": $WINDOWS
             }
           }
