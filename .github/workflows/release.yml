@@ -164,7 +164,7 @@ jobs:
       - name: Build
         env:
           TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"
-        run: npm run tauri-build
+        run: npm run tauri-build -b appimage
 
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'push'
