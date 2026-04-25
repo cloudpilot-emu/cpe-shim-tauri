@@ -159,12 +159,18 @@ jobs:
       - run: npm install
 
       - name: Install experimental appimage branch
-        run: cd src-tauri && cargo install tauri-cli --git https://github.com/tauri-apps/tauri --branch feat/truly-portable-appimage
+        run: cd src-tauri && cargo install tauri-cli --git
+          https://github.com/tauri-apps/tauri --branch
+          feat/truly-portable-appimage
 
       - name: Build
-        env:
-          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"
-        run: npm run tauri-build -- -b appimage
+        run: |
+          source .env
+          export TAURI_SIGNING_PRIVATE_KEY
+          export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+          export TAURI_BUNDLER_NEW_APPIMAGE_FORMAT=true
+          cargo install tauri-cli --git https://github.com/tauri-apps/tauri --branch feat/truly-portable-appimage
+          cargo tauri build -f tauri/unstable -b appimage
 
       - uses: softprops/action-gh-release@v2
         if: github.event_name == 'push'
