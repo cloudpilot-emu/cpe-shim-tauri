@@ -206,7 +206,7 @@ fn get_version(app: &AppHandle) -> u32 {
         | ((semver.major << 16) | (semver.minor << 8) | semver.patch) as u32
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "android"))]
 fn worker_installed(app: &AppHandle) -> bool {
     let store = app.store(store_keys::STORE_NAME).unwrap();
 
@@ -481,10 +481,65 @@ fn initialize_app_view(app: &AppHandle, url: Url) -> anyhow::Result<()> {
         #[cfg(not(dev))]
         let builder = builder.devtools(enable_dev_tools());
 
-        builder.build()?;
+        let mut window = builder.build()?;
+
+        #[cfg(target_os = "android")]
+        if worker_installed(app) {
+            enable_android_connectivity_hack(&mut window);
+        }
     }
 
     Ok(())
+}
+
+#[cfg(target_os = "android")]
+fn enable_android_connectivity_hack(window: &mut tauri::WebviewWindow) {
+    let _ = window.with_webview(|platform_webview| {
+        platform_webview
+            .jni_handle()
+            .exec(|env, activity, webview| {
+                use jni::objects::JValue;
+
+                // val cm = getSystemService(Context.CONNECTIVITY_SERVICE)
+                let service_name = env.new_string("connectivity").unwrap();
+                let cm = env
+                    .call_method(
+                        &activity,
+                        "getSystemService",
+                        "(Ljava/lang/String;)Ljava/lang/Object;",
+                        &[JValue::Object(&service_name)],
+                    )
+                    .unwrap()
+                    .l()
+                    .unwrap();
+
+                // val online = cm.activeNetwork != null
+                let active_network = env
+                    .call_method(&cm, "getActiveNetwork", "()Landroid/net/Network;", &[])
+                    .unwrap()
+                    .l()
+                    .unwrap();
+                let online = !active_network.is_null();
+                println!("connectivity service says online: {}", online);
+
+                // val settings = webView.settings
+                let settings = env
+                    .call_method(
+                        webview,
+                        "getSettings",
+                        "()Landroid/webkit/WebSettings;",
+                        &[],
+                    )
+                    .unwrap()
+                    .l()
+                    .unwrap();
+
+                // settings.cacheMode = if (online) LOAD_DEFAULT else LOAD_CACHE_ELSE_NETWORK
+                let mode: i32 = if online { -1 } else { 1 };
+                env.call_method(&settings, "setCacheMode", "(I)V", &[JValue::Int(mode)])
+                    .unwrap();
+            });
+    });
 }
 
 #[cfg(mobile)]
