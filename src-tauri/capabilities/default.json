@@ -23,6 +23,8 @@
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
     "dialog:default",
-    "store:default"
+    "store:default",
+    "fs:write-all",
+    "fs:read-all"
   ]
 }

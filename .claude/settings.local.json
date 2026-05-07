@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:v2.tauri.app)",
+      "WebFetch(domain:github.com)",
+      "Bash(find /Users/pestix/git/cpe-shim-tauri/src-tauri/target -type f \\\\\\(-name *.sig -o -name *.json \\\\\\))",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(find /Users/pestix/git/cpe-shim-tauri/src-tauri/gen -type f -name *.gradle -o -name settings.gradle)"
+    ]
+  }
+}

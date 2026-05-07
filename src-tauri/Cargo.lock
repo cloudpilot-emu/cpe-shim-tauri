@@ -519,6 +519,7 @@ dependencies = [
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-dialog",
  "tauri-plugin-dns",
+ "tauri-plugin-fs",
  "tauri-plugin-opener",
  "tauri-plugin-store",
  "tauri-plugin-updater",

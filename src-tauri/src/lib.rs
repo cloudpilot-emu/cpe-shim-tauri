@@ -66,7 +66,7 @@ fn normalize_url(url: &str) -> anyhow::Result<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default();
+    let builder = tauri::Builder::default().plugin(tauri_plugin_fs::init());
 
     #[cfg(not(target_os = "android"))]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
